@@ -1,0 +1,80 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+.env
+.venv
+env/
+venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.crash
+.terraform/
+.terraform.lock.hcl
+override.tf
+override.tf.json
+terraform.tfvars
+config.yaml
+*.tfvars.json
+
+# Kubernetes / Helm
+*.kubeconfig
+.kube/
+.kubeconfig.yaml
+charts/
+values.yaml
+secrets.yaml
+*.tgz
+
+# ArgoCD
+argocd-cm.yaml
+argocd-secret.yaml
+manifests/
+
+# GitHub Actions
+.github/workflows/*.secrets.yml
+.github/secrets/
+
+# Prometheus/Grafana
+prometheus.yml
+grafana.db
+grafana.ini
+*.json (for dashboards)
+
+# Logs
+*.log
+logs/
+
+# VSCode
+.vscode/
+.code-workspace
+
+# Misc
+*.bak
+*.swp
+*.tmp
+*.orig
+.idea/
+*.iml
+Thumbs.db
+*.retry
+# terraform/bootstrap/bootstrap.tf
+# terraform/infrastructure/infra.tf
+
+# Ignore generated credentials from google-github-actions/auth
+gha-creds-*.json
+
+docs/
+.terragrunt-cache/

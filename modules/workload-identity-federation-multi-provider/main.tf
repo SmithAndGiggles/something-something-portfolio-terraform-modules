@@ -8,92 +8,70 @@ variable "pool_id" {
   type        = string
 }
 
-variable "wif_providers" {
-  description = "List of provider configurations for the workload identity pool."
-  type = list(object({
-    provider_id         = string
-    select_provider     = string # "oidc", "aws", or "saml"
-    provider_config     = map(any)
-    disabled            = optional(bool)
-    attribute_condition = optional(string)
-    attribute_mapping   = map(string)
-  }))
+variable "provider_id" {
+  description = "The Workload Identity Pool Provider ID."
+  type        = string
 }
 
-variable "service_accounts" {
-  description = "List of service accounts to create and bind roles to."
-  type = list(object({
-    name           = string
-    attribute      = string
-    all_identities = bool
-    roles          = list(string)
-  }))
+variable "display_name" {
+  description = "Display name for the pool and provider."
+  type        = string
+  default     = null
 }
 
-# Create the Workload Identity Pool
+variable "description" {
+  description = "Description for the pool and provider."
+  type        = string
+  default     = null
+}
+
+variable "service_account_email" {
+  description = "The email of the service account to grant roles to."
+  type        = string
+}
+
+variable "project_roles" {
+  description = "List of project roles to grant to the service account."
+  type        = list(string)
+  default     = []
+}
+
+variable "attribute" {
+  description = "The attribute to use for the principalSet member (e.g., 'subject' or 'repository')."
+  type        = string
+  default     = "subject"
+}
+
 resource "google_iam_workload_identity_pool" "this" {
   provider                  = google-beta
   project                   = var.project_id
   workload_identity_pool_id = var.pool_id
-  display_name              = var.pool_id
+  display_name              = var.display_name
+  description               = var.description
 }
 
-# Create multiple providers
 resource "google_iam_workload_identity_pool_provider" "this" {
-  for_each                         = { for p in var.wif_providers : p.provider_id => p }
-  provider                        = google-beta
-  project                         = var.project_id
-  workload_identity_pool_id        = google_iam_workload_identity_pool.this.workload_identity_pool_id
-  workload_identity_pool_provider_id = each.value.provider_id
-  display_name                    = each.value.provider_id
-  description                     = each.value.provider_id
-  disabled                        = lookup(each.value, "disabled", false)
-  attribute_condition             = lookup(each.value, "attribute_condition", null)
-  attribute_mapping               = each.value.attribute_mapping
-
-  dynamic "oidc" {
-    for_each = each.value.select_provider == "oidc" ? [1] : []
-    content {
-      issuer_uri = each.value.provider_config["issuer_uri"]
-      allowed_audiences = split(",", lookup(each.value.provider_config, "allowed_audiences", ""))
-    }
+  provider                          = google-beta
+  project                           = var.project_id
+  workload_identity_pool_id          = google_iam_workload_identity_pool.this.workload_identity_pool_id
+  workload_identity_pool_provider_id = var.provider_id
+  display_name                      = var.display_name
+  description                       = var.description
+  attribute_mapping = {
+    "google.subject"        = "assertion.sub"
+    "attribute.repository"  = "assertion.repository"
   }
-
-  dynamic "aws" {
-    for_each = each.value.select_provider == "aws" ? [1] : []
-    content {
-      account_id = each.value.provider_config["account_id"]
-    }
-  }
-
-  dynamic "saml" {
-    for_each = each.value.select_provider == "saml" ? [1] : []
-    content {
-      idp_metadata_xml = each.value.provider_config["idp_metadata_xml"]
-    }
+  oidc {
+    issuer_uri = "https://token.actions.githubusercontent.com"
   }
 }
 
-# Create service accounts and IAM bindings
-resource "google_service_account" "this" {
-  for_each = { for sa in var.service_accounts : sa.name => sa }
-  account_id   = each.value.name
-  display_name = each.value.name
-  project      = var.project_id
-}
+module "member_roles" {
+  source   = "terraform-google-modules/iam/google//modules/member_iam"
+  version  = "~> 8.0"
 
-resource "google_service_account_iam_binding" "this" {
-  for_each = {
-    for sa in var.service_accounts : sa.name => sa
-  }
-  service_account_id = google_service_account.this[each.key].name
-  role               = each.value.roles[0] # Only the first role for simplicity; can be expanded for multiple roles
-  members = [
-    "principalSet://iam.googleapis.com/projects/${var.project_id}/locations/global/workloadIdentityPools/${var.pool_id}/attribute.${replace(each.value.attribute, "/", ".")}" # attribute mapping
-  ]
-  condition {
-    title       = "Allow federation"
-    description = "Allow federated identity to impersonate this service account."
-    expression  = each.value.all_identities ? "true" : "false"
-  }
+  service_account_address = var.service_account_email
+  prefix                  = "serviceAccount"
+  project_id              = var.project_id
+  project_roles           = var.project_roles
 }
